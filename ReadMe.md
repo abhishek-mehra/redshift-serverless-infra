@@ -103,8 +103,14 @@ Namespace - data and metadata layer.stores tables,database,users,KMS key.can be 
 Workgroup - collection of compute,vpc,subnets,
 
 *IAmUser*
-A User is another identity under the aws account. each user has its own access keys, fine grained permissions,audit its activity,
+A User is another identity under the aws account. each user has its own access keys, fine grained permissions,audit its activity
 
 creating a terraform user cuz root should not be use for day to day tasks its too powerfull.it is to be used only create i am roles, users,auridts, cost
 
-*IAMrole*
+*IAM user*
+represents a permanent identity with permanenent credentials
+This is for humans, applications, cli tools, services
+represent user, appliation or service that wants acces to aws resources. i thas it own credentials. provides long term access with crednetials
+
+*IAM role*
+set of permissiossions.temporary id assumed by services . used by aws services like glue , ec2
