@@ -1,6 +1,13 @@
 resource "aws_redshiftserverless_namespace" "main" {
-  namespace_name = "dev-namespace"
-  kms_key_id     = aws_kms_key.redshift_kms.arn
+  namespace_name        = "dev-namespace"
+  kms_key_id            = aws_kms_key.redshift_kms.arn
+
+  admin_username        = "redshift_admin"
+  admin_user_password   = var.redshift_admin_password
+
+  iam_roles = [
+    aws_iam_role.redshift_admin_role.arn
+  ]
 
   tags = {
     Environment = "dev"
