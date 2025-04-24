@@ -6,3 +6,12 @@ variable "redshift_admin_password" {
   description = "Password for Redshift admin DB user"
   sensitive   = true
 }
+variable "redshift_username" {
+  description = "Username for Redshift DB connection"
+  sensitive   = true
+}
+
+variable "redshift_password" {
+  description = "Password for Redshift DB connection"
+  sensitive   = true
+}

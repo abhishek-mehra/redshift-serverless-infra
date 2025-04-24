@@ -1,0 +1,801 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+
+Additional Info:
+----------------
+
+================================================================
+Directory Structure
+================================================================
+.gitignore
+.terraform.lock.hcl
+glue_connection.tf
+glue_job_redshift.tf
+glue_job.tf
+iam_glue_get_connection.tf
+iam_redshift.tf
+iam.tf
+kms.tf
+provider.tf
+ReadMe.md
+redshift.tf
+s3.tf
+variables.tf
+vpc_endpoint.tf
+vpc.tf
+
+================================================================
+Files
+================================================================
+
+================
+File: .gitignore
+================
+# .gitignore for Terraform projects
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.DS_Store
+
+================
+File: .terraform.lock.hcl
+================
+# This file is maintained automatically by "terraform init".
+# Manual edits may be lost in future updates.
+
+provider "registry.terraform.io/hashicorp/aws" {
+  version = "5.94.1"
+  hashes = [
+    "h1:dYdnGlaCJONFyGk/t3Y4iJzQ8EiJr2DaDdZ/2JV5PZU=",
+    "zh:14fb41e50219660d5f02b977e6f786d8ce78766cce8c2f6b8131411b087ae945",
+    "zh:3bc5d12acd5e1a5f1cf78a7f05d0d63f988b57485e7d20c47e80a0b723a99d26",
+    "zh:4835e49377f80a37c6191a092f636e227a9f086e3cc3f0c9e1b554da8793cfe8",
+    "zh:605971275adae25096dca30a94e29931039133c667c1d9b38778a09594312964",
+    "zh:8ae46b4a9a67815facf59da0c56d74ef71bcc77ae79e8bfbac504fa43f267f8e",
+    "zh:913f3f371c3e6d1f040d6284406204b049977c13cb75aae71edb0ef8361da7dd",
+    "zh:91f85ae8c73932547ad7139ce0b047a6a7c7be2fd944e51db13231cc80ce6d8e",
+    "zh:96352ae4323ce137903b9fe879941f894a3ce9ef30df1018a0f29f285a448793",
+    "zh:9b12af85486a96aedd8d7984b0ff811a4b42e3d88dad1a3fb4c0b580d04fa425",
+    "zh:9b51922c9201b1dc3d05b39f9972715db5f67297deee088793d02dea1832564b",
+    "zh:a689e82112aa71e15647b06502d5b585980cd9002c3cc8458f092e8c8a667696",
+    "zh:c3723fa3e6aff3c1cc0088bdcb1edee168fe60020f2f77161d135bf473f45ab2",
+    "zh:d6a2052b864dd394b01ad1bae32d0a7d257940ee47908d02df7fa7873981d619",
+    "zh:dda4c9c0406cc54ad8ee4f19173a32de7c6e73abb5a948ea0f342d567df26a1d",
+    "zh:f42e0fe592b97cbdf70612f0fbe2bab851835e2d1aaf8cbb87c3ab0f2c96bb27",
+  ]
+}
+
+================
+File: glue_connection.tf
+================
+resource "aws_glue_connection" "redshift_jdbc"{
+    name = "redshift-jdbc-conn"
+
+    connection_type = "JDBC"
+
+    connection_properties = {
+    JDBC_CONNECTION_URL = "jdbc:redshift://dev-workgroup.104334887604.us-east-1.redshift-serverless.amazonaws.com:5439/dev"
+    USERNAME            = var.redshift_username
+    PASSWORD            = var.redshift_password
+    }
+    
+    physical_connection_requirements {
+    availability_zone      = "us-east-1a" 
+    security_group_id_list = [aws_security_group.redshift_sg.id]
+    subnet_id              = aws_subnet.redshift_subnet_1.id
+  }
+
+  tags = {
+    Purpose = "ETL connection to Redshift Serverless"
+  }
+}
+
+================
+File: glue_job_redshift.tf
+================
+resource "aws_glue_job" "copy_parquet_to_redshift"{
+    name = "copy-parquet-to-redshift"
+    role_arn = aws_iam_role.glue_job_role.arn
+    glue_version = "5.0"
+    number_of_workers = 2
+    worker_type = "G.1X"
+
+    command{
+        name = "glueetl"
+        script_location = "s3://redshift-secure-data-lake-104334887604/scripts/copy_all_to_redshift.py"
+        python_version = "3"
+    }
+
+      default_arguments = {
+    "--job-language" = "python"
+    "--TempDir" = "s3://redshift-secure-data-lake-104334887604/temp/"
+    "--enable-continuous-cloudwatch-log" = "true"
+    "--enable-glue-datacatalog" = "true"
+    "--enable-metrics" = "true"
+    "--JOB_NAME" = "copy-parquet-to-redshift"
+
+    }
+    connections = [aws_glue_connection.redshift_jdbc.name]
+
+    tags = {
+    Purpose = "Load Parquet into Redshift"
+    Environment = "dev"
+  }
+
+}
+
+# Policy to allow Glue to read from Secrets Manager
+resource "aws_iam_policy" "glue_secrets_policy" {
+  name = "GlueSecretsReadPolicy"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ],
+        Resource = "arn:aws:secretsmanager:us-east-1:${data.aws_caller_identity.current.account_id}:secret:redshift/glue/credentials*"
+      }
+    ]
+  })
+}
+
+# Attach the policy to Glue job role
+resource "aws_iam_role_policy_attachment" "attach_glue_secrets" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_secrets_policy.arn
+}
+
+================
+File: glue_job.tf
+================
+resource "aws_glue_job" "fitbit_activity_etl" {
+  name     = "fitbit-activity-etl"
+  role_arn = aws_iam_role.glue_job_role.arn
+
+  command {
+    name            = "glueetl"
+    script_location = "s3://redshift-secure-data-lake-104334887604/scripts/process_all_activities_glue_job.py"
+    python_version  = "3"                      # Glue 5 supports Python 3.10
+  }
+
+  glue_version       = "5.0"                   # 🔄 Use Glue version 5.0 (latest as of 2024–2025)
+  number_of_workers  = 2
+  worker_type        = "G.1X"
+  timeout            = 10
+  max_retries        = 0
+
+  default_arguments = {
+    "--job-language"         = "python"
+    "--TempDir"              = "s3://redshift-secure-data-lake-104334887604/glue-temp/"
+    "--enable-glue-datacatalog" = "true"       # ✅ Recommended for v5
+    "--enable-continuous-cloudwatch-log" = "true"
+    "--enable-spark-ui"      = "true"          # Optional but helpful for debugging
+    "--spark-event-logs-path" = "s3://redshift-secure-data-lake-104334887604/spark-events/"
+  }
+
+  tags = {
+    Environment = "prod"
+    Project     = "FitbitPipeline"
+  }
+}
+
+resource "aws_cloudwatch_log_group" "glue_logs" {
+  name              = "/aws-glue/jobs/output"
+  retention_in_days = 7
+}
+
+================
+File: iam_glue_get_connection.tf
+================
+resource "aws_iam_policy" "glue_connection_access" {
+  name = "GlueConnectionAccessPolicy"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "glue:GetConnection",
+          "glue:GetConnections"
+        ],
+        Resource = [
+          "arn:aws:glue:us-east-1:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:us-east-1:${data.aws_caller_identity.current.account_id}:connection/redshift-jdbc-conn"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_glue_connection_policy" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_connection_access.arn
+}
+
+================
+File: iam_redshift.tf
+================
+resource "aws_iam_role" "redshift_admin_role" {
+  name = "redshift-admin-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "redshift.amazonaws.com"
+      },
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Purpose = "Redshift Namespace Admin Role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "redshift_commands_policy" {
+  role       = aws_iam_role.redshift_admin_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftAllCommandsFullAccess"
+}
+
+================
+File: iam.tf
+================
+resource "aws_iam_role" "glue_job_role" {
+  name = "glue-job-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "glue.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Purpose = "Glue ETL Job Role"
+  }
+}
+
+resource "aws_iam_policy" "glue_s3_access" {
+  name        = "GlueS3AccessPolicy"
+  description = "Allow Glue to read from S3 bucket"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid: "AllowS3ReadAccess",
+        Effect: "Allow",
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",   
+          "s3:ListBucket"
+        ],
+        Resource: [
+          aws_s3_bucket.secure_data_lake.arn,
+          "${aws_s3_bucket.secure_data_lake.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_s3_policy" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_s3_access.arn
+}
+
+resource "aws_iam_policy" "glue_logging_policy" {
+  name        = "GlueLoggingPolicy"
+  description = "Allow Glue to write logs to CloudWatch"
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid: "AllowCloudWatchLogging",
+        Effect: "Allow",
+        Action: [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "cloudwatch:PutMetricData"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_logging_policy" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_logging_policy.arn
+}
+
+resource "aws_iam_policy" "glue_vpc_policy" {
+  name = "GlueVpcDescribeAccess"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeVpcEndpoints",
+          "ec2:DescribeRouteTables"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+resource "aws_iam_policy" "glue_network_interface_policy" {
+  name = "GlueENICreationPolicy"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets"
+        ],
+        Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:CreateTags",
+          "ec2:DeleteTags"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_glue_network_interface_policy" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_network_interface_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "attach_vpc_policy" {
+  role       = aws_iam_role.glue_job_role.name
+  policy_arn = aws_iam_policy.glue_vpc_policy.arn
+}
+
+================
+File: kms.tf
+================
+resource "aws_kms_key" "redshift_kms"{
+    description  = "KMS key for aws redshift"
+    enable_key_rotation = false
+    deletion_window_in_days = 20
+}
+
+resource "aws_kms_key_policy" "redshift_kms_policy" {
+    key_id = aws_kms_key.redshift_kms.id
+
+    policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Id": "key-default-1",
+    "Statement": [
+        {
+            "Sid": "AllowRootAccountFullAccess",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+            },
+            "Action": "kms:*",
+            "Resource": "*"
+        }
+    ]
+}
+EOF
+}
+
+resource "aws_kms_alias" "redshift_alias"{
+    name = "alias/redshift-key"
+    target_key_id = aws_kms_key.redshift_kms.id
+}
+
+data "aws_caller_identity" "current" {}
+
+================
+File: provider.tf
+================
+provider "aws"{
+    region = var.aws_region
+}
+
+================
+File: ReadMe.md
+================
+🔐 **Secure Analytics Platform Overview**  
+Hosted entirely within a secure AWS VPC.
+
+🏗️ **Infrastructure Components**  
+**Amazon Redshift Serverless**  
+- Runs entirely within the VPC.  
+- Accessible only via specific Security Groups.  
+- Integrated with KMS for encryption.  
+- Monitors connection logs (via system tables like `stl_connection_log`, `svl_qlog`).
+
+**Amazon S3**  
+- Used to load data into Redshift.  
+- Encrypted with Server-Side Encryption (SSE-KMS).  
+- Requires users to have access to the KMS key for interaction.
+
+**Amazon Workspaces / IDE Access**  
+- Resides inside the same VPC.  
+- Uses AWS-provided Redshift Drivers for secure access.
+
+👥 **User Access Flow**  
+- Must be part of a dedicated company account (SSO integration).  
+- **Access to Redshift Console**  
+  - Must belong to a specific Active Directory (AD) group.  
+  - This does not grant access to data.  
+- **Access to Data**  
+  - Inside Redshift:  
+    - Requires SQL grants (schemas, tables, views).  
+    - Users assigned to Redshift groups mapped to IAM roles.  
+    - Credentials managed via IAM + Redshift role association or IAM database authentication.
+
+🧱 **Access Controls**  
+- Redshift schema-level and table-level grants.  
+- Workspace-to-Redshift controlled via:  
+  - Security Group rules  
+  - IAM roles  
+  - AD group membership  
+- KMS access required for S3 + Redshift integration.
+
+⚙️ **Terraform Goals**  
+You want to use Terraform to automate the following:  
+- VPC setup (Redshift Serverless, Security Groups).  
+- IAM roles and policies.  
+- KMS key and policies.  
+- Redshift Serverless configuration.  
+- Redshift users/groups/privileges.  
+- S3 buckets with SSE-KMS.  
+- Possibly AD group membership (if using AWS Managed Microsoft AD or IAM Identity Center).
+
+**Terraform**  
+A tool that lets you define services as code and deploy them consistently.  
+In Terraform, you define:  
+- **Provider**: which cloud service you want to use.  
+- **Variables**: which you can reuse.  
+- **Resource**: what you want to use.  
+- **Output**: what you want to see when it is deployed.  
+- **State**: keeps track of what is created.
+
+`terraform init` initializes the project.
+
+**VPC**  
+A *VPC* is a Virtual Private Cloud where you can define your private network in AWS. It is like a building in AWS.  
+- **Subnet**: subdivision inside of a VPC.  
+- **CIDR**: Classless Inter-Domain Routing defines the range of IP addresses inside of a VPC or subnet.  
+- **Security Group**: a firewall for AWS resources. It controls who can connect to resources like Redshift and EC2. It is tied to individual AWS resources and is not shared across VPCs or subnets.  
+- **Init**: initializes the project and downloads any required plugins.  
+- **Plan**: compares the desired state to the present state. It will show what will be changed, created, or destroyed.
+
+1. VPC  
+2. 3 private subnets  
+3. CIDR blocks for 37 IP requirements  
+4. 1 security group  
+
+**Redshift Serverless**  
+- **Namespace**: data and metadata layer. Stores tables, databases, users, and KMS keys. Can be shared across multiple workgroups. Central place to store and manage data and metadata.  
+- **Workgroup**: collection of compute, VPC, and subnets.
+
+**IAM User**  
+A user is another identity under the AWS account. Each user has its own access keys, fine-grained permissions, and audit activity.  
+Creating a Terraform user because the root account should not be used for day-to-day tasks; it is too powerful. It should only be used to create IAM roles, users, audits, and costs.
+
+**IAM User**  
+Represents a permanent identity with permanent credentials.  
+This is for humans, applications, CLI tools, and services.  
+Represents a user, application, or service that wants access to AWS resources. It has its own credentials and provides long-term access with credentials.
+
+**IAM Role**  
+A set of permissions. A temporary identity assumed by services. Used by AWS services like Glue and EC2.
+
+glue iam role
+define role, then define it that only glue can assume that role-*trust policy*
+then define what can role do, this is *permission policy*
+then  attcached the permission to the role
+
+A role includes
+*trust policy* means who can assume the role
+*permission policies* what actions the role can perform
+
+*glue connection*
+since redhshift is in private vpc, we need to define glue connection. glue connection will tell glue how to connect to redshift. this is imp for network level info,jdbc credentials,
+
+
+variable "redshift_admin_password" {
+  description = "Password for Redshift admin DB user"
+  sensitive   = true
+}
+variable "redshift_username" {
+  description = "Username for Redshift DB connection"
+  sensitive   = true
+}
+
+variable "redshift_password" {
+  description = "Password for Redshift DB connection"
+  sensitive   = true
+}
+
+================
+File: redshift.tf
+================
+resource "aws_redshiftserverless_namespace" "main" {
+  namespace_name        = "dev-namespace"
+  kms_key_id            = aws_kms_key.redshift_kms.arn
+
+  admin_username        = "redshift_admin"
+  admin_user_password   = var.redshift_admin_password
+
+  iam_roles = [
+    aws_iam_role.redshift_admin_role.arn
+  ]
+
+  tags = {
+    Environment = "dev"
+  }
+}
+
+resource "aws_redshiftserverless_workgroup" "main" {
+  workgroup_name = "dev-workgroup"
+  namespace_name = aws_redshiftserverless_namespace.main.namespace_name
+
+  subnet_ids = [
+    aws_subnet.redshift_subnet_1.id,
+    aws_subnet.redshift_subnet_2.id,
+    aws_subnet.redshift_subnet_3.id
+  ]
+
+  security_group_ids = [aws_security_group.redshift_sg.id]
+
+  tags = {
+    Environment = "dev"
+  }
+}
+
+================
+File: s3.tf
+================
+# Create the S3 bucket
+resource "aws_s3_bucket" "secure_data_lake" {
+  bucket = "redshift-secure-data-lake-${data.aws_caller_identity.current.account_id}"
+
+  tags = {
+    Name        = "Redshift Data Lake"
+    Environment = "dev"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "sse_s3"{
+    bucket = aws_s3_bucket.secure_data_lake.id
+
+
+    rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"  # <- SSE-S3 encryption
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "block_public" {
+  bucket = aws_s3_bucket.secure_data_lake.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+================
+File: variables.tf
+================
+variable "aws_region" {
+    default = "us-east-1"
+}
+
+variable "redshift_admin_password" {
+  description = "Password for Redshift admin DB user"
+  sensitive   = true
+}
+variable "redshift_username" {
+  description = "Username for Redshift DB connection"
+  sensitive   = true
+}
+
+variable "redshift_password" {
+  description = "Password for Redshift DB connection"
+  sensitive   = true
+}
+
+================
+File: vpc_endpoint.tf
+================
+data "aws_route_table" "main" {
+  filter {
+    name   = "vpc-id"
+    values = [aws_vpc.redshift_vpc.id]
+  }
+
+  filter {
+    name   = "association.main"
+    values = ["true"]
+  }
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.redshift_vpc.id
+  service_name      = "com.amazonaws.us-east-1.s3"
+  route_table_ids   = [data.aws_route_table.main.id]
+  vpc_endpoint_type = "Gateway"
+
+  tags = {
+    Name = "S3 VPC Endpoint"
+  }
+}
+
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id              = aws_vpc.redshift_vpc.id
+  service_name        = "com.amazonaws.us-east-1.secretsmanager"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [
+    aws_subnet.redshift_subnet_1.id,
+    aws_subnet.redshift_subnet_2.id,
+    aws_subnet.redshift_subnet_3.id
+  ]
+  security_group_ids  = [aws_security_group.redshift_sg.id]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name = "SecretsManager VPC Endpoint"
+  }
+}
+
+================
+File: vpc.tf
+================
+resource "aws_vpc" "redshift_vpc"{
+    cidr_block = "10.0.0.0/16"
+    enable_dns_hostnames = true
+
+    tags = {
+        Name = "redshift-vpc"
+    }
+}
+
+resource "aws_subnet" "redshift_subnet_1" {
+    vpc_id            = aws_vpc.redshift_vpc.id
+    cidr_block        = "10.0.1.0/24"
+    availability_zone = "us-east-1a"
+
+    tags = {
+        Name = "redshift-subnet-1"
+    }
+}
+
+resource "aws_subnet" "redshift_subnet_2" {
+    vpc_id            = aws_vpc.redshift_vpc.id
+    cidr_block        = "10.0.2.0/24"
+    availability_zone = "us-east-1b"
+
+    tags = {
+        Name = "redshift-subnet-2"
+    }
+}
+
+resource "aws_subnet" "redshift_subnet_3" {
+    vpc_id            = aws_vpc.redshift_vpc.id
+    cidr_block        = "10.0.3.0/24"
+    availability_zone = "us-east-1c"
+
+    tags = {
+        Name = "redshift-subnet-3"
+    }
+}
+
+resource "aws_security_group" "redshift_sg"{
+    name = "redshift-security-group"
+    description = "allow redshift access within VPC"
+    vpc_id = aws_vpc.redshift_vpc.id
+
+    ingress{
+        from_port = 5439
+        to_port = 5439
+        protocol = "tcp"
+        cidr_blocks = ["10.0.0.0/16"]
+    }
+
+    # Glue job worker communication
+    ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    self        = true
+    }
+    
+    egress{
+        from_port = 0 
+        to_port = 0
+        protocol = -1
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+
+
+================================================================
+End of Codebase
+================================================================

@@ -91,6 +91,24 @@ define role, then define it that only glue can assume that role-*trust policy*
 then define what can role do, this is *permission policy*
 then  attcached the permission to the role
 
+A role includes
+*trust policy* means who can assume the role
+*permission policies* what actions the role can perform
 
 *glue connection*
 since redhshift is in private vpc, we need to define glue connection. glue connection will tell glue how to connect to redshift. this is imp for network level info,jdbc credentials,
+
+
+variable "redshift_admin_password" {
+  description = "Password for Redshift admin DB user"
+  sensitive   = true
+}
+variable "redshift_username" {
+  description = "Username for Redshift DB connection"
+  sensitive   = true
+}
+
+variable "redshift_password" {
+  description = "Password for Redshift DB connection"
+  sensitive   = true
+}

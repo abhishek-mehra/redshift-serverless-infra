@@ -1,0 +1,23 @@
+{
+    "Comment": "Fitbit ETL Pipeline via Glue",
+    "StartAt": "Transform Fitbit Data",
+    "States": {
+      "Transform Fitbit Data": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::glue:startJobRun.sync",
+        "Parameters": {
+          "JobName": "fitbit-activity-etl"
+        },
+        "Next": "Load Data to Redshift"
+      },
+      "Load Data to Redshift": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::glue:startJobRun.sync",
+        "Parameters": {
+          "JobName": "copy-parquet-to-redshift"
+        },
+        "End": true
+      }
+    }
+  }
+  
